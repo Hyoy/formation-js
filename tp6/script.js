@@ -1,103 +1,147 @@
+const firebaseUrl = 'https://firebaise-96d1f-default-rtdb.europe-west1.firebasedatabase.app/personnes';
+const tableBody = document.querySelector("#tableBody");
+const prenomInput = document.querySelector("#prenom");
+const nomInput = document.querySelector("#nom");
+const ajouterButton = document.querySelector("#btnAjouter");
+const searchInput = document.querySelector("#search");
 
-class Personne {
-    constructor(prenom, nom, status = true) {
-      this.prenom = prenom;
-      this.nom = nom;
-      this.status = status;
-    }
-  }
-  
-  
-  let personnes = JSON.parse(localStorage.getItem("personnes")) || [];
-  
 
-  const prenomInput = document.querySelector("input[placeholder='Prénom']");
-  const nomInput = document.querySelector("input[placeholder='Nom']");
-  const ajouterButton = document.querySelector(".btn-success");
-  const tableBody = document.querySelector("tbody");
-  
- 
-  function afficherPersonnes() {
-    tableBody.innerHTML = ""; 
-    personnes.forEach((personne, index) => {
-      const row = document.createElement("tr");
-      row.className = personne.status ? "table-success" : "table-danger";
-      row.dataset.indice = index;
-  
-      row.innerHTML = `
-        <td>${personne.prenom}</td>
-        <td>${personne.nom}</td>
-        <td>
-          <button class="btn btn-danger" data-action="supprimer">
-            <i class="fa fa-trash"></i>
-          </button>
-        </td>
-        <td>
-          <button class="btn btn-warning" data-action="changerStatut">
-            <i class="fa fa-check"></i>
-          </button>
-        </td>
-      `;
-  
-      tableBody.appendChild(row);
-    });
+async function ajouterPersonne(personne) {
+  try {
+    const response = await axios.post(`${firebaseUrl}.json`, personne);
+    console.log("Personne ajoutée avec ID :", response.data.name);
+    return response.data.name;
+  } catch (error) {
+    console.error("Erreur lors de l'ajout :", error);
   }
-  
-  
-  function ajouterPersonne() {
-    const prenom = prenomInput.value.trim();
-    const nom = nomInput.value.trim();
-  
-    if (prenom && nom) {
-      const nouvellePersonne = new Personne(prenom, nom);
-      personnes.push(nouvellePersonne);
-      mettreAJourLocalStorage();
-      afficherPersonnes();
-      prenomInput.value = "";
-      nomInput.value = "";
-    } else {
-      alert("Veuillez remplir les champs Prénom et Nom.");
-    }
-  }
-  
- 
-  function enleverPersonne(index) {
-    personnes.splice(index, 1);
-    mettreAJourLocalStorage();
-    afficherPersonnes();
-  }
-  
+}
 
-  function changerStatut(index) {
-    personnes[index].status = !personnes[index].status;
-    mettreAJourLocalStorage();
-    afficherPersonnes();
+async function modifierPersonne(id, data) {
+  try {
+    const response = await axios.patch(`${firebaseUrl}/${id}.json`, data);
+    console.log("Personne modifiée :", response.data);
+  } catch (error) {
+    console.error("Erreur lors de la modification :", error);
   }
-  
+}
 
-  function mettreAJourLocalStorage() {
-    localStorage.setItem("personnes", JSON.stringify(personnes));
+
+async function supprimerPersonne(id) {
+  try {
+    const response = await axios.delete(`${firebaseUrl}/${id}.json`);
+    console.log("Personne supprimée :", response.data);
+  } catch (error) {
+    console.error("Erreur lors de la suppression :", error);
   }
-  
+}
 
-  tableBody.addEventListener("click", (event) => {
-    const button = event.target.closest("button");
-    if (!button) return;
-  
-    const row = button.closest("tr");
-    const index = row.dataset.indice;
-    const action = button.dataset.action;
-  
-    if (action === "supprimer") {
-      enleverPersonne(index);
-    } else if (action === "changerStatut") {
-      changerStatut(index);
-    }
+
+async function listerPersonnes() {
+  try {
+    const response = await axios.get(`${firebaseUrl}.json`);
+    const personnes = response.data;
+    return Object.keys(personnes || {}).map((id) => ({
+      id,
+      ...personnes[id],
+    }));
+  } catch (error) {
+    console.error("Erreur lors de la récupération :", error);
+    return [];
+  }
+}
+
+async function afficherPersonnes() {
+  const personnes = await listerPersonnes();
+  tableBody.innerHTML = "";
+  personnes.forEach((personne) => {
+    const row = document.createElement("tr");
+    row.className = personne.status ? "table-success" : "table-danger";
+
+    row.innerHTML = `
+      <td>${personne.prenom}</td>
+      <td>${personne.nom}</td>
+      <td>${personne.status ? "Actif" : "Inactif"}</td>
+      <td>
+        <button class="btn btn-danger" data-id="${personne.id}" data-action="supprimer">
+          <i class="fa fa-trash"></i>
+        </button>
+      </td>
+      <td>
+        <button class="btn btn-warning" data-id="${personne.id}" data-action="changerStatut">
+          <i class="fa fa-check"></i>
+        </button>
+      </td>
+    `;
+    tableBody.appendChild(row);
   });
-  
+}
 
-  ajouterButton.addEventListener("click", ajouterPersonne);
-  
 
-  afficherPersonnes();
-  
+ajouterButton.addEventListener("click", async () => {
+  const prenom = prenomInput.value.trim();
+  const nom = nomInput.value.trim();
+
+  if (prenom && nom) {
+    const nouvellePersonne = { prenom, nom, status: true };
+    await ajouterPersonne(nouvellePersonne);
+    afficherPersonnes();
+    prenomInput.value = "";
+    nomInput.value = "";
+  } else {
+    alert("Veuillez remplir les champs Prénom et Nom.");
+  }
+});
+
+
+tableBody.addEventListener("click", async (event) => {
+  const button = event.target.closest("button");
+  if (!button) return;
+
+  const id = button.dataset.id;
+  const action = button.dataset.action;
+
+  if (action === "supprimer") {
+    await supprimerPersonne(id);
+    afficherPersonnes();
+  } else if (action === "changerStatut") {
+    await modifierPersonne(id, { status: false });
+    afficherPersonnes();
+  }
+});
+
+
+searchInput.addEventListener("input", async () => {
+  const searchTerm = searchInput.value.toLowerCase();
+  const personnes = await listerPersonnes();
+  const filteredPersonnes = personnes.filter(
+    (p) =>
+      p.prenom.toLowerCase().includes(searchTerm) ||
+      p.nom.toLowerCase().includes(searchTerm)
+  );
+
+  tableBody.innerHTML = "";
+  filteredPersonnes.forEach((personne) => {
+    const row = document.createElement("tr");
+    row.className = personne.status ? "table-success" : "table-danger";
+
+    row.innerHTML = `
+      <td>${personne.prenom}</td>
+      <td>${personne.nom}</td>
+      <td>${personne.status ? "Actif" : "Inactif"}</td>
+      <td>
+        <button class="btn btn-danger" data-id="${personne.id}" data-action="supprimer">
+          <i class="fa fa-trash"></i>
+        </button>
+      </td>
+      <td>
+        <button class="btn btn-warning" data-id="${personne.id}" data-action="changerStatut">
+          <i class="fa fa-check"></i>
+        </button>
+      </td>
+    `;
+    tableBody.appendChild(row);
+  });
+});
+
+
+afficherPersonnes();
